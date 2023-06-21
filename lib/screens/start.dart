@@ -39,14 +39,11 @@ class StartScreen extends StatelessWidget {
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(
                   vertical: 10,
-                  horizontal: 100,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(500),
+                  horizontal: 138,
                 ),
               ),
               child: const Text(
-                "Sign in",
+                "Đăng nhập",
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
@@ -60,17 +57,14 @@ class StartScreen extends StatelessWidget {
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(
                   vertical: 10,
-                  horizontal: 100,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(500),
+                  horizontal: 150,
                 ),
               ),
               onPressed: () {
                 context.push("/signUp");
               },
               child: const Text(
-                "Sign up",
+                "Đăng kí",
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
