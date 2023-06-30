@@ -5,6 +5,7 @@ import 'package:chatty/screens/search.dart';
 import 'package:chatty/screens/menu.dart';
 import 'package:chatty/screens/chat.dart';
 import 'package:chatty/screens/call.dart';
+import 'package:chatty/screens/otp.dart';
 
 import 'package:chatty/screens/contact.dart';
 
@@ -12,11 +13,11 @@ import 'package:chatty/screens/start.dart';
 import 'package:go_router/go_router.dart';
 
 final UserProfile user = UserProfile(
-    name: "Nhơn Trần",
-    email: "nhontran801@gmail.com",
-    phoneNumber: "0354531587",
+    name: "",
+    email: "",
+    phoneNumber: "",
     avatarUrl:
-        "https://th.bing.com/th/id/R.6af6fd9c37f0de4abb34ea0fd20acce3?rik=55mqMmrTutVR0Q&pid=ImgRaw&r=0");
+        "https://res.cloudinary.com/dbk0cmzcb/image/upload/v1687548264/kb6ege5y9jgmxxxfselw.png");
 final routes = GoRouter(
   initialLocation: "/",
   routes: [
@@ -34,7 +35,9 @@ final routes = GoRouter(
     ),
     GoRoute(
       path: "/profile",
-      builder: (context, state) => ProfileScreen(userProfile: user),
+      builder: (context, state) => ProfileScreen(
+        userProfile: user,
+      ),
     ),
     GoRoute(
       path: "/search",
@@ -55,6 +58,10 @@ final routes = GoRouter(
     GoRoute(
       path: "/call",
       builder: (context, state) => const CallScreen(),
+    ),
+    GoRoute(
+      path: "/otp",
+      builder: (context, state) => const OTPConfirmationScreen(),
     )
   ],
 );

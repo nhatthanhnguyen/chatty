@@ -1,4 +1,10 @@
+import 'package:go_router/go_router.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
+import '../constants/config_api.dart';
+import 'dart:convert';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({Key? key}) : super(key: key);
@@ -8,6 +14,14 @@ class SignUpScreen extends StatefulWidget {
 }
 
 class _SignUpScreenState extends State<SignUpScreen> {
+  bool isLoading = false;
+
+  @override
+  void initState() {
+    isRegisterError = false; // Thêm biến kiểm tra lỗi đăng nhập
+    super.initState();
+  }
+
   bool _showPassword = false;
   bool _showConfirmPassword = false;
   final _nameController = TextEditingController();
@@ -16,6 +30,35 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  bool isRegisterError = false;
+  final _phoneRegex = RegExp(r'^0[0-9]*$');
+  final _emailRegex = RegExp(
+    r'^[\w-]+(\.[\w-]+)*@[a-zA-Z0-9-]+(\.[a-zA-Z0-9-]+)*(\.[a-zA-Z]{2,})$',
+  );
+
+  void _validateEmail(String value) {
+    setState(() {
+      if (!_emailRegex.hasMatch(value)) {
+        _errorMessageMail = 'Email không chính xác';
+      } else {
+        _errorMessageMail = null;
+      }
+    });
+  }
+
+  void _validateConfirmPassword(String value) {
+    setState(() {
+      if (value != _passwordController.text) {
+        _eroErrorMessagePassword = 'Mật khẩu không khớp';
+      } else {
+        _eroErrorMessagePassword = null;
+      }
+    });
+  }
+
+  String? _errorMessage;
+  String? _errorMessageMail;
+  String? _eroErrorMessagePassword;
 
   @override
   void dispose() {
@@ -26,6 +69,62 @@ class _SignUpScreenState extends State<SignUpScreen> {
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
+  }
+
+  void _validatePhoneNumber(String value) {
+    setState(() {
+      if (!_phoneRegex.hasMatch(value)) {
+        _errorMessage = 'Số điện thoại không hợp lệ';
+      } else {
+        _errorMessage = null;
+      }
+    });
+  }
+
+  Future<bool> _register(String name, String phone, String username,
+      String email, String pass, String confirm) async {
+    var headers = {
+      'Content-Type': 'application/json',
+    };
+
+    var requestBody = {
+      "username": username,
+      "email": email,
+      "phone_number": phone,
+      "password": pass,
+      "gender": "male",
+      "date_of_birth": "18/12/2001",
+    };
+
+    var request = http.Request(
+      'POST',
+      Uri.parse('$hostAPI/auth/register'),
+    );
+    request.headers.addAll(headers);
+    request.body = json.encode(requestBody);
+
+    http.StreamedResponse response = await request.send();
+
+    if (response.statusCode == 200) {
+      String responseBody = await response.stream.bytesToString();
+      final Map<String, dynamic> jsonLogin = jsonDecode(responseBody);
+      if (jsonLogin['sub_return_code'].toString() == "1000") {
+        const storage = FlutterSecureStorage();
+        await storage.write(key: "email_register", value: email);
+        isRegisterError = false; // Đánh dấu thông tin đăng nhập sai
+        return true;
+      } else {
+        setState(() {
+          isRegisterError = true; // Đánh dấu thông tin đăng nhập sai
+        });
+        return false;
+      }
+    } else {
+      setState(() {
+        isRegisterError = true; // Đánh dấu thông tin đăng nhập sai
+      });
+      return false;
+    }
   }
 
   @override
@@ -61,8 +160,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     labelText: 'Họ và tên',
                     hintText: 'Nhập họ và tên',
                     contentPadding: EdgeInsets.symmetric(
-                        vertical: 15,
-                        horizontal: 20), // Tăng kích thước ô nhập liệu
+                      vertical: 15,
+                      horizontal: 20,
+                    ),
                   ),
                 ),
               ),
@@ -71,13 +171,23 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 30),
                 child: TextField(
                   controller: _phoneController,
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(11),
+                  ],
+                  onChanged: _validatePhoneNumber,
+                  decoration: InputDecoration(
+                    border: const OutlineInputBorder(),
                     labelText: 'Số điện thoại',
                     hintText: 'Nhập số điện thoại',
-                    contentPadding: EdgeInsets.symmetric(
-                        vertical: 15,
-                        horizontal: 20), // Tăng kích thước ô nhập liệu
+                    contentPadding: const EdgeInsets.symmetric(
+                      vertical: 15,
+                      horizontal: 20,
+                    ),
+                    errorText: _errorMessage != null &&
+                            _phoneController.text.isNotEmpty
+                        ? _errorMessage
+                        : null,
                   ),
                 ),
               ),
@@ -91,8 +201,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     labelText: 'Tên đăng nhập',
                     hintText: 'Nhập tên đăng nhập',
                     contentPadding: EdgeInsets.symmetric(
-                        vertical: 15,
-                        horizontal: 20), // Tăng kích thước ô nhập liệu
+                      vertical: 15,
+                      horizontal: 20,
+                    ),
                   ),
                 ),
               ),
@@ -101,13 +212,19 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 30),
                 child: TextField(
                   controller: _emailController,
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
+                  onChanged: _validateEmail, // Gọi hàm kiểm tra regex
+                  decoration: InputDecoration(
+                    border: const OutlineInputBorder(),
                     labelText: 'Email',
                     hintText: 'Nhập email',
-                    contentPadding: EdgeInsets.symmetric(
-                        vertical: 15,
-                        horizontal: 20), // Tăng kích thước ô nhập liệu
+                    contentPadding: const EdgeInsets.symmetric(
+                      vertical: 15,
+                      horizontal: 20,
+                    ),
+                    errorText: _errorMessageMail != null &&
+                            _emailController.text.isNotEmpty
+                        ? _errorMessageMail
+                        : null,
                   ),
                 ),
               ),
@@ -132,8 +249,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       ),
                     ),
                     contentPadding: const EdgeInsets.symmetric(
-                        vertical: 15,
-                        horizontal: 20), // Tăng kích thước ô nhập liệu
+                      vertical: 15,
+                      horizontal: 20,
+                    ),
                   ),
                 ),
               ),
@@ -143,6 +261,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 child: TextField(
                   controller: _confirmPasswordController,
                   obscureText: !_showConfirmPassword,
+                  onChanged:
+                      _validateConfirmPassword, // Gọi hàm kiểm tra xác nhận mật khẩu
                   decoration: InputDecoration(
                     border: const OutlineInputBorder(),
                     labelText: 'Xác nhận mật khẩu',
@@ -160,17 +280,50 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       ),
                     ),
                     contentPadding: const EdgeInsets.symmetric(
-                        vertical: 15,
-                        horizontal: 20), // Tăng kích thước ô nhập liệu
+                      vertical: 15,
+                      horizontal: 20,
+                    ),
+                    errorText: _eroErrorMessagePassword != null &&
+                            _confirmPasswordController.text.isNotEmpty
+                        ? _eroErrorMessagePassword
+                        : null,
                   ),
                 ),
               ),
               const SizedBox(height: 20),
+              if (isRegisterError) // Hiển thị thông báo lỗi nếu thông tin đăng nhập sai
+                const Text(
+                  "Thông tin đăng kí chưa chính xác!",
+                  style: TextStyle(
+                    color: Colors.red,
+                  ),
+                ),
               ElevatedButton(
-                onPressed: () {
-                  // Perform sign up action
+                onPressed: () async {
+                  setState(() {
+                    isLoading = true; // Bắt đầu hiệu ứng loading
+                  });
+
+                  bool? isSuccess = await _register(
+                    _nameController.text,
+                    _phoneController.text,
+                    _usernameController.text,
+                    _emailController.text,
+                    _passwordController.text,
+                    _confirmPasswordController.text,
+                  );
+
+                  setState(() {
+                    isLoading = false; // Kết thúc hiệu ứng loading
+                  });
+
+                  if (isSuccess) {
+                    context.push("/otp");
+                  }
                 },
-                child: const Text('Đăng ký'),
+                child: isLoading
+                    ? const CircularProgressIndicator()
+                    : const Text('Đăng ký'),
               ),
             ],
           ),

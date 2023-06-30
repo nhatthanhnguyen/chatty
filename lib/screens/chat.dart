@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'dart:convert';
+import '../models/user.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({Key? key}) : super(key: key);
@@ -13,9 +16,10 @@ class _ChatScreenState extends State<ChatScreen>
   late AnimationController _animationController;
   late Animation<Offset> _animation;
   bool _isMenuOpen = false;
-  final List<User> userList = List.generate(
+  User userInfo = User(username: "");
+  final List<User1> userList = List.generate(
     10,
-    (index) => User(
+    (index) => User1(
       name: 'User ${index + 1}',
       imageUrl:
           'https://upload.wikimedia.org/wikipedia/commons/b/b6/Image_created_with_a_mobile_phone.png',
@@ -25,7 +29,7 @@ class _ChatScreenState extends State<ChatScreen>
   final List<Chat> chatList = List.generate(
     10,
     (index) => Chat(
-      user: User(
+      user: User1(
         name: 'User ${index + 1}',
         imageUrl:
             'https://upload.wikimedia.org/wikipedia/commons/b/b6/Image_created_with_a_mobile_phone.png',
@@ -34,10 +38,20 @@ class _ChatScreenState extends State<ChatScreen>
       time: '10:${index.toString().padLeft(2, '0')}',
     ),
   );
+  Future<void> getUserInfo() async {
+    const storage = FlutterSecureStorage();
+    String? userText = await storage.read(key: "user");
+    final Map<String, dynamic> jsonUser = jsonDecode(userText.toString());
+    User user = User.fromJson(jsonUser);
+    userInfo = user;
+    setState(() {});
+  }
 
   @override
   void initState() {
     super.initState();
+    userInfo = User(username: "");
+    getUserInfo();
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 500),
       vsync: this,
@@ -171,14 +185,14 @@ class _ChatScreenState extends State<ChatScreen>
                         const CircleAvatar(
                           radius: 50,
                           backgroundImage: NetworkImage(
-                            'https://th.bing.com/th/id/R.6af6fd9c37f0de4abb34ea0fd20acce3?rik=55mqMmrTutVR0Q&pid=ImgRaw&r=0',
+                            'https://res.cloudinary.com/dbk0cmzcb/image/upload/v1687548264/kb6ege5y9jgmxxxfselw.png',
                           ),
                         ),
                         const SizedBox(height: 10),
-                        const Text(
-                          'User Name',
+                        Text(
+                          userInfo.username!,
                           textAlign: TextAlign.center,
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
                           ),
@@ -236,15 +250,15 @@ class _ChatScreenState extends State<ChatScreen>
   }
 }
 
-class User {
+class User1 {
   final String name;
   final String imageUrl;
 
-  User({required this.name, required this.imageUrl});
+  User1({required this.name, required this.imageUrl});
 }
 
 class Chat {
-  final User user;
+  final User1 user;
   final String lastMessage;
   final String time;
 

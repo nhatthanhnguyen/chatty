@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 
 import '../constants/config_api.dart';
+import '../models/user.dart';
 
 class SignInScreen extends StatefulWidget {
   const SignInScreen({Key? key}) : super(key: key);
@@ -25,9 +26,58 @@ class _SignInScreenState extends State<SignInScreen> {
   final _passwordController = TextEditingController();
   bool isLoginError = false; // Thêm biến kiểm tra lỗi đăng nhập
 
-  void writeToken(String value) async {
+  void writeToken(String token, String userId) async {
     const storage = FlutterSecureStorage();
-    await storage.write(key: "token", value: value);
+    print("token1:$token");
+    await storage.write(key: "token", value: token);
+    await storage.write(key: "userId", value: userId);
+  }
+
+  Future<void> getInfoUser(String userId) async {
+    const storage = FlutterSecureStorage();
+    String? token = await storage.read(key: "token");
+    print("token2:pchat=$token");
+    print("userID:$userId");
+    var headers = {
+      'Content-Type': 'application/json',
+      'Cookie': 'pchat=$token',
+    };
+    var requestBody = {
+      "user_id": userId,
+    };
+    var request = http.Request(
+      'POST',
+      Uri.parse('$hostAPI/user/get'),
+    );
+    request.headers.addAll(headers);
+    request.body = json.encode(requestBody);
+
+    http.StreamedResponse response = await request.send();
+
+    if (response.statusCode == 200) {
+      print("cc");
+      String responseBody = await response.stream.bytesToString();
+      final Map<String, dynamic> jsonLogin = jsonDecode(responseBody);
+      if (jsonLogin['sub_return_code'].toString() == "1000") {
+        User user = User.fromJson(jsonLogin['info']);
+        const storage = FlutterSecureStorage();
+        await storage.write(key: "user", value: jsonEncode(user.toJson()));
+        // String? userText = await storage.read(key: "user");
+        // final Map<String, dynamic> jsonLogin1 = jsonDecode(userText.toString());
+        // User user1 = User.fromJson(jsonLogin1);
+        // print(user1.url);
+        isLoginError = false;
+      } else {
+        setState(() {
+          isLoginError = true; // Đánh dấu thông tin đăng nhập sai
+        });
+      }
+    } else {
+      print(response.reasonPhrase);
+      setState(() {
+        isLoginError = true; // Đánh dấu thông tin đăng nhập sai
+      });
+    }
   }
 
   Future<bool> login(String userName, String password) async {
@@ -57,9 +107,11 @@ class _SignInScreenState extends State<SignInScreen> {
         int startIndex = setCookie.indexOf('pchat=') + 'pchat='.length;
         int endIndex = setCookie.indexOf(';', startIndex);
         String token = setCookie.substring(startIndex, endIndex);
+        String userId = jsonLogin['user_id'].toString();
         // write token
-        writeToken(token);
-
+        writeToken(token, userId);
+        //get info user
+        getInfoUser(userId);
         isLoginError = false;
         return true;
       } else {

@@ -1,11 +1,13 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../models/user.dart';
 
 class UserProfile {
   String name;
-  final String email;
-  final String phoneNumber;
+  String email;
+  String phoneNumber;
   String avatarUrl;
 
   UserProfile({
@@ -25,46 +27,32 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  bool _isEditingName = false;
-  late TextEditingController _nameController;
+  // void setUserInfo() {
+  //   getUserInfo();
+
+  // }
+
+  Future<void> getUserInfo() async {
+    const storage = FlutterSecureStorage();
+    String? userText = await storage.read(key: "user");
+    final Map<String, dynamic> jsonUser = jsonDecode(userText.toString());
+    User user = User.fromJson(jsonUser);
+    widget.userProfile.name = user.username.toString();
+    widget.userProfile.avatarUrl = user.url.toString();
+    widget.userProfile.email = user.email.toString();
+    widget.userProfile.phoneNumber = user.phoneNumber.toString();
+    setState(() {});
+  }
 
   @override
-  void initState() {
+  initState() {
     super.initState();
-    _nameController = TextEditingController(text: widget.userProfile.name);
+    getUserInfo();
   }
 
   @override
   void dispose() {
-    _nameController.dispose();
     super.dispose();
-  }
-
-  void _toggleEditingName() {
-    setState(() {
-      _isEditingName = !_isEditingName;
-    });
-  }
-
-  void _saveName() {
-    // Perform save name action
-    // You can update the UserProfile object or make an API call to save the name
-    String newName = _nameController.text;
-    // Update the name in the UserProfile object
-    widget.userProfile.name = newName;
-    _toggleEditingName();
-  }
-
-  void _openImageLibrary() async {
-    final imagePicker = ImagePicker();
-    final pickedImage =
-        await imagePicker.pickImage(source: ImageSource.gallery);
-
-    if (pickedImage != null) {
-      // Update the avatarUrl in the UserProfile object
-      widget.userProfile.avatarUrl = pickedImage.path;
-      setState(() {});
-    }
   }
 
   @override
@@ -92,26 +80,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               const SizedBox(height: 30),
               GestureDetector(
-                onTap: _openImageLibrary,
-                child: Stack(
-                  children: [
-                    CircleAvatar(
-                      radius: 80,
-                      backgroundImage:
-                          NetworkImage(widget.userProfile.avatarUrl),
+                onTap: () {},
+                child: Container(
+                  width: 160, // Kích thước của hình tròn
+                  height: 160,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white, // Màu nền của hình tròn
+                    border: Border.all(
+                      color: Colors.black, // Màu viền của hình tròn
+                      width: 2.0, // Độ dày của viền
                     ),
-                    Positioned(
-                      bottom: 0,
-                      right: 0,
-                      child: IconButton(
-                        onPressed: _openImageLibrary,
-                        icon: const Icon(
-                          Icons.camera_alt,
-                          color: Colors.grey,
-                        ),
-                      ),
-                    ),
-                  ],
+                  ),
+                  child: CircleAvatar(
+                    backgroundColor: Colors.white,
+                    radius: 80, // Bán kính của Avatar
+                    backgroundImage: NetworkImage(widget.userProfile.avatarUrl),
+                  ),
                 ),
               ),
               const SizedBox(height: 20),
@@ -121,50 +106,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   border: Border.all(color: Colors.grey),
                   borderRadius: BorderRadius.circular(5),
                 ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: _isEditingName
-                          ? TextFormField(
-                              controller: _nameController,
-                              decoration: const InputDecoration(
-                                border: InputBorder.none,
-                                labelText: 'Họ và tên',
-                                hintText: 'Nhập họ và tên',
-                                contentPadding: EdgeInsets.symmetric(
-                                  vertical: 15,
-                                  horizontal: 20,
-                                ),
-                              ),
-                            )
-                          : TextFormField(
-                              controller: TextEditingController(
-                                  text: widget.userProfile.name),
-                              enabled: false,
-                              decoration: const InputDecoration(
-                                border: InputBorder.none,
-                                labelText: 'Họ và tên',
-                                hintText: 'Nhập họ và tên',
-                                contentPadding: EdgeInsets.symmetric(
-                                  vertical: 15,
-                                  horizontal: 20,
-                                ),
-                              ),
-                            ),
+                child: TextFormField(
+                  controller:
+                      TextEditingController(text: widget.userProfile.name),
+                  enabled: false,
+                  decoration: const InputDecoration(
+                    border: InputBorder.none,
+                    labelText: 'Username',
+                    hintText: 'Nhập username',
+                    contentPadding: EdgeInsets.symmetric(
+                      vertical: 15,
+                      horizontal: 20,
                     ),
-                    IconButton(
-                      onPressed: () {
-                        if (_isEditingName) {
-                          _saveName();
-                        } else {
-                          _toggleEditingName();
-                        }
-                      },
-                      icon: _isEditingName
-                          ? const Icon(Icons.save)
-                          : const Icon(Icons.edit),
-                    ),
-                  ],
+                  ),
                 ),
               ),
               const SizedBox(height: 20),
@@ -174,25 +128,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   border: Border.all(color: Colors.grey),
                   borderRadius: BorderRadius.circular(5),
                 ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: TextFormField(
-                        controller: TextEditingController(
-                            text: widget.userProfile.email),
-                        enabled: false,
-                        decoration: const InputDecoration(
-                          border: InputBorder.none,
-                          labelText: 'Email',
-                          hintText: 'Nhập email',
-                          contentPadding: EdgeInsets.symmetric(
-                            vertical: 15,
-                            horizontal: 20,
-                          ),
-                        ),
-                      ),
+                child: TextFormField(
+                  controller:
+                      TextEditingController(text: widget.userProfile.email),
+                  enabled: false,
+                  decoration: const InputDecoration(
+                    border: InputBorder.none,
+                    labelText: 'Email',
+                    hintText: 'Nhập email',
+                    contentPadding: EdgeInsets.symmetric(
+                      vertical: 15,
+                      horizontal: 20,
                     ),
-                  ],
+                  ),
                 ),
               ),
               const SizedBox(height: 20),
@@ -202,25 +150,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   border: Border.all(color: Colors.grey),
                   borderRadius: BorderRadius.circular(5),
                 ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: TextFormField(
-                        controller: TextEditingController(
-                            text: widget.userProfile.phoneNumber),
-                        enabled: false,
-                        decoration: const InputDecoration(
-                          border: InputBorder.none,
-                          labelText: 'Số điện thoại',
-                          hintText: 'Nhập số điện thoại',
-                          contentPadding: EdgeInsets.symmetric(
-                            vertical: 15,
-                            horizontal: 20,
-                          ),
-                        ),
-                      ),
+                child: TextFormField(
+                  controller: TextEditingController(
+                      text: widget.userProfile.phoneNumber),
+                  enabled: false,
+                  decoration: const InputDecoration(
+                    border: InputBorder.none,
+                    labelText: 'Số điện thoại',
+                    hintText: 'Nhập số điện thoại',
+                    contentPadding: EdgeInsets.symmetric(
+                      vertical: 15,
+                      horizontal: 20,
                     ),
-                  ],
+                  ),
                 ),
               ),
               const SizedBox(height: 20),
