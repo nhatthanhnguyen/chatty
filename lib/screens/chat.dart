@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:convert';
+import '../constants/config_api.dart';
 import '../models/user.dart';
+import 'package:http/http.dart' as http;
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({Key? key}) : super(key: key);
@@ -17,6 +19,8 @@ class _ChatScreenState extends State<ChatScreen>
   late Animation<Offset> _animation;
   bool _isMenuOpen = false;
   User userInfo = User(username: "");
+  List<User> listFriends = [];
+
   final List<User1> userList = List.generate(
     10,
     (index) => User1(
@@ -25,6 +29,47 @@ class _ChatScreenState extends State<ChatScreen>
           'https://upload.wikimedia.org/wikipedia/commons/b/b6/Image_created_with_a_mobile_phone.png',
     ),
   );
+
+  Future<void> getListFriends() async {
+    // /friend/get-all-friend-by-user-id
+    const storage = FlutterSecureStorage();
+    String? userId = await storage.read(key: "userId");
+    String? token = await storage.read(key: "token");
+
+    // call api
+    var headers = {
+      'Content-Type': 'application/json',
+      'Cookie': 'pchat=$token',
+    };
+    var requestBody = {
+      "user_id": userId,
+    };
+    var request = http.Request(
+      'POST',
+      Uri.parse('$hostAPI/friend/get-all-friend-by-user-id'),
+    );
+    request.headers.addAll(headers);
+    request.body = json.encode(requestBody);
+
+    http.StreamedResponse response = await request.send();
+
+    if (response.statusCode == 200) {
+      String responseBody = await response.stream.bytesToString();
+      final Map<String, dynamic> jsonListFriends = jsonDecode(responseBody);
+      if (jsonListFriends['sub_return_code'].toString() == "1000") {
+        List<dynamic> userInfos = jsonListFriends['user_infos'];
+        listFriends =
+            userInfos.map((userInfo) => User.fromJson(userInfo)).toList();
+
+        setState(() {});
+      } else {
+        print(response.reasonPhrase);
+        // setState(() {
+        //   // isLoginError = true; // Đánh dấu thông tin đăng nhập sai
+        // });
+      }
+    }
+  }
 
   final List<Chat> chatList = List.generate(
     10,
@@ -51,6 +96,7 @@ class _ChatScreenState extends State<ChatScreen>
   void initState() {
     super.initState();
     userInfo = User(username: "");
+    getListFriends();
     getUserInfo();
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 500),
@@ -106,25 +152,33 @@ class _ChatScreenState extends State<ChatScreen>
                   height: 120,
                   child: ListView.builder(
                     scrollDirection: Axis.horizontal,
-                    itemCount: userList.length,
+                    itemCount: listFriends.length,
                     itemBuilder: (context, index) {
-                      final user = userList[index];
-                      return Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: Column(
-                          children: [
-                            CircleAvatar(
-                              radius: 30,
-                              backgroundImage: NetworkImage(user.imageUrl),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              user.name.length > 10
-                                  ? '${user.name.substring(0, 10)}...'
-                                  : user.name,
-                              style: const TextStyle(fontSize: 12),
-                            ),
-                          ],
+                      final user = listFriends[index];
+                      return GestureDetector(
+                        onTap: () {
+                          // Xử lý sự kiện khi nhấn vào phần tử
+                          // context.push("/chat/user/${user.userId}");
+                          print("Clicked on user: ${user.username}");
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Column(
+                            children: [
+                              CircleAvatar(
+                                radius: 30,
+                                backgroundImage:
+                                    NetworkImage(user.url.toString()),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                user.username.toString().length > 10
+                                    ? '${user.username.toString().substring(0, 10)}...'
+                                    : user.username.toString(),
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                            ],
+                          ),
                         ),
                       );
                     },

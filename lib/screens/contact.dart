@@ -1,5 +1,12 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
+import 'package:http/http.dart' as http;
+
+import '../constants/config_api.dart';
+import '../models/user.dart';
 
 class ContactScreen extends StatefulWidget {
   const ContactScreen({Key? key}) : super(key: key);
@@ -10,27 +17,32 @@ class ContactScreen extends StatefulWidget {
 
 class _ContactScreenState extends State<ContactScreen>
     with SingleTickerProviderStateMixin {
+  List<User> searchUsers = [];
   late AnimationController _animationController;
   late Animation<Offset> _animation;
   bool _isMenuOpen = false;
-  final List<User> friendList = [
-    User(
-      name: 'Nhơn trần',
-      imageUrl:
-          'https://scontent.fsgn5-11.fna.fbcdn.net/v/t39.30808-6/305189399_3238978553019350_4101751137687577235_n.jpg?_nc_cat=110&ccb=1-7&_nc_sid=09cbfe&_nc_ohc=gVEGNgUqORQAX80kbMi&_nc_ht=scontent.fsgn5-11.fna&oh=00_AfAyWkJRULvqSMA0bcNiaUlqLvsoLMxZi1wgqw_pWcffyA&oe=649D870F',
-    ),
-    User(
-      name: 'Linh Diệu',
-      imageUrl:
-          'https://th.bing.com/th/id/OIP.Jii5phSpvOOP6nxfaDLJIQHaEK?pid=ImgDet&w=474&h=266&rs=1',
-    ),
-    User(
-      name: 'Tuyền Trần (chưa có bồ và rất là xinh đẹp tuyệt vời ông mặt trời)',
-      imageUrl:
-          'https://scontent.fsgn5-9.fna.fbcdn.net/v/t39.30808-6/347654967_260992839630422_8040730751667589792_n.jpg?_nc_cat=102&ccb=1-7&_nc_sid=09cbfe&_nc_ohc=jZKbKinPgMQAX9BgBXW&_nc_ht=scontent.fsgn5-9.fna&oh=00_AfAJMm8ZiBW_9mlSSQcLMfCeXJFl0iqMniaeFhxd9qF8kA&oe=649DCA09',
-    ),
-    // Add more friends here
-  ];
+
+  Future<void> removeFriend(String userId) async {
+    const storage = FlutterSecureStorage();
+    String? token = await storage.read(key: "token");
+    // call api
+    var headers = {
+      'Content-Type': 'application/json',
+      'Cookie': 'pchat=$token',
+    };
+    var requestBody = {
+      "user_id": userId,
+    };
+    var request = http.Request(
+      'POST',
+      Uri.parse('$hostAPI/friend/remove-friend'),
+    );
+    request.headers.addAll(headers);
+    request.body = json.encode(requestBody);
+
+    http.StreamedResponse response = await request.send();
+    if (response.statusCode == 200) {}
+  }
 
   void _removeFriend(int index) {
     showDialog(
@@ -43,7 +55,8 @@ class _ContactScreenState extends State<ContactScreen>
             TextButton(
               onPressed: () {
                 setState(() {
-                  friendList.removeAt(index);
+                  removeFriend(searchUsers[index].userId.toString());
+                  searchUsers.removeAt(index);
                 });
                 Navigator.of(context).pop();
               },
@@ -62,13 +75,14 @@ class _ContactScreenState extends State<ContactScreen>
   }
 
   List<bool> addedFriendList =
-      List.filled(3, false); // Initial state: not added as friend
+      List.filled(100, false); // Initial state: not added as friend
 
   String searchText = ''; // Biến lưu trữ văn bản tìm kiếm
   TextEditingController searchController = TextEditingController();
   @override
   void initState() {
     super.initState();
+    searchUsers = [];
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 500),
       vsync: this,
@@ -85,6 +99,7 @@ class _ContactScreenState extends State<ContactScreen>
   @override
   void dispose() {
     _animationController.dispose();
+    searchUsers = [];
     super.dispose();
   }
 
@@ -97,6 +112,55 @@ class _ContactScreenState extends State<ContactScreen>
       _animationController.forward();
     } else {
       _animationController.reverse();
+    }
+  }
+
+  Future<void> searchFunc(String text) async {
+    if (text.isEmpty) {
+      setState(() {
+        searchUsers = [];
+      });
+    } else {
+      const storage = FlutterSecureStorage();
+      String? token = await storage.read(key: "token");
+      // call api
+      var headers = {
+        'Content-Type': 'application/json',
+        'Cookie': 'pchat=$token',
+      };
+      var requestBody = {
+        "username": text,
+      };
+      var request = http.Request(
+        'POST',
+        Uri.parse('$hostAPI/user/search-friend'),
+      );
+      request.headers.addAll(headers);
+      request.body = json.encode(requestBody);
+
+      http.StreamedResponse response = await request.send();
+
+      if (response.statusCode == 200) {
+        String responseBody = await response.stream.bytesToString();
+        final Map<String, dynamic> jsonListUsers = jsonDecode(responseBody);
+        if (jsonListUsers['sub_return_code'].toString() == "1000") {
+          bool containsKey = jsonListUsers.containsKey("user_infos");
+          if (containsKey) {
+            List<dynamic> userInfos = jsonListUsers['user_infos'];
+            searchUsers =
+                userInfos.map((userInfo) => User.fromJson(userInfo)).toList();
+            setState(() {});
+          } else {
+            setState(() {
+              searchUsers = [];
+            });
+          }
+        } else {
+          setState(() {
+            searchUsers = [];
+          });
+        }
+      }
     }
   }
 
@@ -137,6 +201,7 @@ class _ContactScreenState extends State<ContactScreen>
                           onChanged: (value) {
                             setState(() {
                               searchText = searchController.text;
+                              searchFunc(searchText);
                             });
                           },
                         ),
@@ -147,6 +212,7 @@ class _ContactScreenState extends State<ContactScreen>
                           setState(() {
                             searchController.clear();
                             searchText = '';
+                            searchFunc(searchText);
                             print("?????");
                           });
                         },
@@ -156,16 +222,16 @@ class _ContactScreenState extends State<ContactScreen>
                 ),
                 Expanded(
                   child: ListView.builder(
-                    itemCount: friendList.length,
+                    itemCount: searchUsers.length,
                     itemBuilder: (context, index) {
-                      final result = friendList[index];
+                      final result = searchUsers[index];
                       final isAdded = addedFriendList[index];
 
                       return ListTile(
                         leading: CircleAvatar(
-                          backgroundImage: NetworkImage(result.imageUrl),
+                          backgroundImage: NetworkImage(result.url.toString()),
                         ),
-                        title: Text(result.name),
+                        title: Text(result.username.toString()),
                         trailing: Container(
                           decoration: BoxDecoration(
                             color: Colors.grey[300],
@@ -185,6 +251,9 @@ class _ContactScreenState extends State<ContactScreen>
                             ),
                           ),
                         ),
+                        onTap: () {
+                          print("username: =>>> ${result.username}");
+                        },
                       );
                     },
                   ),
@@ -302,11 +371,4 @@ class _ContactScreenState extends State<ContactScreen>
       ),
     );
   }
-}
-
-class User {
-  final String name;
-  final String imageUrl;
-
-  User({required this.name, required this.imageUrl});
 }
