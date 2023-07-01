@@ -1,14 +1,14 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
-import 'package:chatty/models/chat_history.dart';
 import 'package:chatty/models/group.dart';
 import 'package:chatty/utils/convert.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_chat_types/flutter_chat_types.dart' as types;
-import 'package:flutter_chat_types/flutter_chat_types.dart';
 import 'package:flutter_chat_ui/flutter_chat_ui.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
@@ -60,8 +60,6 @@ class _ChatGroupScreenState extends State<ChatGroupScreen> {
           _group = Group.fromJson(jsonResponse['info']);
         });
       }
-    } else {
-      print(response.reasonPhrase);
     }
   }
 
@@ -89,9 +87,8 @@ class _ChatGroupScreenState extends State<ChatGroupScreen> {
       Map<String, dynamic> responseJson = jsonDecode(value);
       List<types.Message> messages = [];
       if (responseJson['chat_history'] != null) {
-        for (final chatHistoryJson in responseJson['chat_history']) {
-          ChatHistory chatHistory = ChatHistory.fromJson(chatHistoryJson);
-          types.Message message = await _convertToMessageType(chatHistory);
+        for (final jsonMessage in responseJson['chat_history']) {
+          types.Message message = await _convertToMessageType(jsonMessage);
           messages.insert(0, message);
         }
       }
@@ -124,7 +121,7 @@ class _ChatGroupScreenState extends State<ChatGroupScreen> {
     return null;
   }
 
-  Future<void> _createMessage(String text, String type) async {
+  Future<void> _createMessage(String text) async {
     var headers = {
       'Cookie': _token,
     };
@@ -140,52 +137,91 @@ class _ChatGroupScreenState extends State<ChatGroupScreen> {
     http.StreamedResponse response = await request.send();
 
     if (response.statusCode == 200) {
-      print(await response.stream.bytesToString());
-    } else {
-      print(response.reasonPhrase);
+      if (kDebugMode) {
+        print(await response.stream.bytesToString());
+      }
     }
   }
 
-  Future<types.Message> _convertToMessageType(ChatHistory chatHistory) async {
+  Future<types.Message> _convertToMessageType(
+      Map<String, dynamic> jsonMessage) async {
+    String senderId = jsonMessage['sender_id'].toString();
+    String type = jsonMessage['resource_type'].toString();
     var randomId = const Uuid().v4().toString();
     Map<String, dynamic> json = <String, dynamic>{};
-    DateFormat format = DateFormat('yyyy-MM-dd HH:mm:ss.SSS');
-    DateTime dateTime = format.parse(chatHistory.time as String);
-    UserInfo? userInfo = await _fetchUserInfo(chatHistory.senderId as String);
+    UserInfo? userInfo = await _fetchUserInfo(senderId);
+    DateFormat format = DateFormat('yyyy-MM-dd HH:mm:ss');
+    DateTime dateTime = format.parse(jsonMessage['time'].toString());
     int timestamp =
         dateTime.add(const Duration(hours: 7)).millisecondsSinceEpoch;
+
     json['id'] = randomId;
     json['createdAt'] = timestamp;
     json['author'] = {
-      'id': chatHistory.senderId,
+      'id': senderId,
       'firstName': userInfo?.username,
       'imageUrl': userInfo?.url,
     };
-    json['type'] = 'text';
-    json['text'] = chatHistory.message;
+    if (type == 'text') {
+      json['text'] = jsonMessage['message'].toString();
+      json['type'] = 'text';
+    }
+    if (type == 'image') {
+      json['size'] = jsonMessage['file_size'];
+      json['height'] = jsonMessage['height'];
+      json['width'] = jsonMessage['width'];
+      json['uri'] = jsonMessage['url'];
+      json['name'] = jsonMessage['file_name'];
+      json['type'] = 'image';
+    }
+    if (type == 'file') {
+      json['size'] = jsonMessage['file_size'];
+      json['name'] = jsonMessage['file_name'];
+      json['uri'] = jsonMessage['url'];
+      json['type'] = 'file';
+      json['mimeType'] = lookupMimeType(jsonMessage['url']);
+    }
     return types.Message.fromJson(json);
   }
 
   Future<types.Message> _handleMessageSocket(String data) async {
     Map<String, dynamic> json = jsonDecode(data);
-    Map<String, dynamic> payloadJson = json['payload'];
-    String userId = payloadJson['senderID'];
-    UserInfo? userInfo = await _fetchUserInfo(userId);
-    User author = User(
-      id: payloadJson['senderID'],
-      firstName: userInfo?.username,
-      imageUrl: userInfo?.url,
-    );
-    String timeString = payloadJson['time'];
-    DateTime dateTime = DateTime.parse(timeString);
-    int timeStamp = dateTime.millisecondsSinceEpoch;
-    final textMessage = types.TextMessage(
-      author: author,
-      id: const Uuid().v4(),
-      text: payloadJson['message'],
-      createdAt: timeStamp,
-    );
-    return textMessage;
+    Map<String, dynamic> jsonPayload = json['payload'];
+    String senderId = jsonPayload['sender_id'].toString();
+    String type = jsonPayload['type'].toString();
+    var randomId = const Uuid().v4().toString();
+    Map<String, dynamic> jsonMessage = <String, dynamic>{};
+    DateTime dateTime = DateTime.parse(jsonPayload['time'].toString());
+    int timestamp = dateTime.millisecondsSinceEpoch;
+    UserInfo? userInfo = await _fetchUserInfo(senderId);
+
+    jsonMessage['id'] = randomId;
+    jsonMessage['createdAt'] = timestamp;
+    jsonMessage['author'] = {
+      "id": senderId,
+      "imageUrl": userInfo?.url,
+      "firstname": userInfo?.username,
+    };
+    if (type == 'text') {
+      jsonMessage['text'] = jsonPayload['message'].toString();
+      jsonMessage['type'] = 'text';
+    }
+    if (type == 'image') {
+      jsonMessage['size'] = jsonPayload['file_size'];
+      jsonMessage['height'] = jsonPayload['height'];
+      jsonMessage['width'] = jsonPayload['width'];
+      jsonMessage['uri'] = jsonPayload['url'];
+      jsonMessage['name'] = jsonPayload['file_name'];
+      jsonMessage['type'] = 'image';
+    }
+    if (type == 'file') {
+      jsonMessage['size'] = jsonPayload['file_size'];
+      jsonMessage['name'] = jsonPayload['file_name'];
+      jsonMessage['uri'] = jsonPayload['url'];
+      jsonMessage['type'] = 'file';
+      jsonMessage['mimeType'] = lookupMimeType(jsonPayload['url']);
+    }
+    return types.Message.fromJson(jsonMessage);
   }
 
   Future<void> _fetchCurrentUser() async {
@@ -193,7 +229,7 @@ class _ChatGroupScreenState extends State<ChatGroupScreen> {
     String? userText = await _storage.read(key: "user");
     final Map<String, dynamic> jsonUser = jsonDecode(userText.toString());
     setState(() {
-      _token = token as String;
+      _token = 'pchat=${token.toString()}';
       _currentUser = UserInfo.fromJson(jsonUser);
     });
   }
@@ -229,74 +265,72 @@ class _ChatGroupScreenState extends State<ChatGroupScreen> {
     });
   }
 
+  Future<Map<String, dynamic>> _uploadFileSelect(
+      Uint8List bytes, String fileName) async {
+    var headers = {
+      'Cookie': _token,
+    };
+    var request = http.MultipartRequest('POST',
+        Uri.parse('http://103.142.26.18:8081/api/message/create-message'));
+    request.fields.addAll({'recipient_id': widget.groupId});
+    request.files.add(http.MultipartFile.fromBytes(
+      'file',
+      bytes,
+      filename: fileName,
+    ));
+    request.headers.addAll(headers);
+
+    http.StreamedResponse response = await request.send();
+
+    if (response.statusCode == 200) {
+      String responseBody = await response.stream.bytesToString();
+      Map<String, dynamic> responseJson = jsonDecode(responseBody);
+      return responseJson['message'];
+    }
+    return {};
+  }
+
   void _handleAttachmentPressed() {
     showModalBottomSheet<void>(
       context: context,
       builder: (context) {
-        return Wrap(
-          children: [
-            ListTile(
-              leading: const Icon(Icons.photo),
-              title: const Text('Photo'),
-              onTap: () {
-                Navigator.pop(context);
-                _handleImageSelection();
-              },
+        return SafeArea(
+          child: SizedBox(
+            height: 144,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _handleImageSelection();
+                  },
+                  child: const Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: Text('Photo'),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _handleFileSelection();
+                  },
+                  child: const Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: Text('File'),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: Text('Cancel'),
+                  ),
+                ),
+              ],
             ),
-            ListTile(
-              leading: const Icon(Icons.file_upload),
-              title: const Text('File'),
-              onTap: () {
-                Navigator.pop(context);
-                _handleFileSelection();
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.cancel),
-              title: const Text('Cancel'),
-              onTap: () {
-                Navigator.pop(context);
-              },
-            ),
-          ],
+          ),
         );
-        // return SafeArea(
-        //   child: SizedBox(
-        //     height: 144,
-        //     child: Column(
-        //       crossAxisAlignment: CrossAxisAlignment.stretch,
-        //       children: <Widget>[
-        //         TextButton(
-        //           onPressed: () {
-        //             Navigator.pop(context);
-        //             _handleImageSelection();
-        //           },
-        //           child: const Align(
-        //             alignment: AlignmentDirectional.centerStart,
-        //             child: Text('Photo'),
-        //           ),
-        //         ),
-        //         TextButton(
-        //           onPressed: () {
-        //             Navigator.pop(context);
-        //             _handleFileSelection();
-        //           },
-        //           child: const Align(
-        //             alignment: AlignmentDirectional.centerStart,
-        //             child: Text('File'),
-        //           ),
-        //         ),
-        //         TextButton(
-        //           onPressed: () => Navigator.pop(context),
-        //           child: const Align(
-        //             alignment: AlignmentDirectional.centerStart,
-        //             child: Text('Cancel'),
-        //           ),
-        //         ),
-        //       ],
-        //     ),
-        //   ),
-        // );
       },
     );
   }
@@ -307,14 +341,21 @@ class _ChatGroupScreenState extends State<ChatGroupScreen> {
     );
 
     if (result != null && result.files.single.path != null) {
+      final response = await _uploadFileSelect(
+          result.files.single.bytes!, result.files.single.name);
+      final timeString = response['time'].toString();
+      DateFormat inputFormatter = DateFormat('yyyy-MM-dd HH:mm:ss');
+      DateTime dateTime = inputFormatter.parse(timeString);
+      final fileName = response['file_name'].toString();
+      final url = response['url'];
       final message = types.FileMessage(
         author: convertToUserType(_currentUser),
-        createdAt: DateTime.now().millisecondsSinceEpoch,
+        createdAt: dateTime.millisecondsSinceEpoch,
         id: const Uuid().v4(),
         mimeType: lookupMimeType(result.files.single.path!),
-        name: result.files.single.name,
+        name: fileName,
         size: result.files.single.size,
-        uri: result.files.single.path!,
+        uri: url,
       );
 
       _addMessage(message);
@@ -331,15 +372,20 @@ class _ChatGroupScreenState extends State<ChatGroupScreen> {
     if (result != null) {
       final bytes = await result.readAsBytes();
       final image = await decodeImageFromList(bytes);
-
+      final response = await _uploadFileSelect(bytes, result.name);
+      final timeString = response['time'].toString();
+      DateFormat inputFormatter = DateFormat('yyyy-MM-dd HH:mm:ss');
+      DateTime dateTime = inputFormatter.parse(timeString);
+      final fileName = response['file_name'].toString();
+      final url = response['url'];
       final message = types.ImageMessage(
         author: convertToUserType(_currentUser),
-        createdAt: DateTime.now().millisecondsSinceEpoch,
+        createdAt: dateTime.millisecondsSinceEpoch,
         height: image.height.toDouble(),
         id: const Uuid().v4(),
-        name: result.name,
+        name: fileName,
         size: bytes.length,
-        uri: result.path,
+        uri: url,
         width: image.width.toDouble(),
       );
 
@@ -407,7 +453,7 @@ class _ChatGroupScreenState extends State<ChatGroupScreen> {
   }
 
   void _handleSendPressed(types.PartialText message) {
-    _createMessage(message.text, 'text').then((_) {
+    _createMessage(message.text).then((_) {
       final textMessage = types.TextMessage(
         author: convertToUserType(_currentUser),
         createdAt: DateTime.now().millisecondsSinceEpoch,
@@ -425,7 +471,9 @@ class _ChatGroupScreenState extends State<ChatGroupScreen> {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () {},
+          onPressed: () {
+            context.pop();
+          },
         ),
         title: Text(
           _group?.groupName != null
@@ -435,17 +483,11 @@ class _ChatGroupScreenState extends State<ChatGroupScreen> {
         ),
         actions: [
           IconButton(
-            onPressed: () {
-              context
-                  .push('/calling/user/962e2e9c-13fe-11ee-94f7-2af8bc66f883');
-            },
+            onPressed: () {},
             icon: const Icon(Icons.call),
           ),
           IconButton(
-            onPressed: () {
-              context
-                  .push('/incomming/user/1b392352-1414-11ee-bf3d-2af8bc66f883');
-            },
+            onPressed: () {},
             icon: const Icon(Icons.video_call),
           ),
           IconButton(

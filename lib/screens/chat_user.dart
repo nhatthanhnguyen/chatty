@@ -169,14 +169,18 @@ class _ChatPrivateScreenState extends State<ChatPrivateScreen> {
   }
 
   Future<Map<String, dynamic>> _uploadFileSelect(
-      String filePath, String fileName) async {
+      Uint8List bytes, String fileName) async {
     var headers = {
       'Cookie': _token,
     };
     var request = http.MultipartRequest('POST',
         Uri.parse('http://103.142.26.18:8081/api/message/create-message'));
     request.fields.addAll({'recipient_id': _userReceive.userId.toString()});
-    request.files.add(await http.MultipartFile.fromPath('file', filePath));
+    request.files.add(http.MultipartFile.fromBytes(
+      'file',
+      bytes,
+      filename: fileName,
+    ));
     request.headers.addAll(headers);
 
     http.StreamedResponse response = await request.send();
@@ -270,7 +274,7 @@ class _ChatPrivateScreenState extends State<ChatPrivateScreen> {
 
     if (result != null && result.files.single.path != null) {
       final response = await _uploadFileSelect(
-          result.files.single.path!, result.files.single.name);
+          result.files.single.bytes!, result.files.single.name);
       final timeString = response['time'].toString();
       DateFormat inputFormatter = DateFormat('yyyy-MM-dd HH:mm:ss');
       DateTime dateTime = inputFormatter.parse(timeString);
@@ -300,7 +304,7 @@ class _ChatPrivateScreenState extends State<ChatPrivateScreen> {
     if (result != null) {
       final bytes = await result.readAsBytes();
       final image = await decodeImageFromList(bytes);
-      final response = await _uploadFileSelect(result.path, result.name);
+      final response = await _uploadFileSelect(bytes, result.name);
       final timeString = response['time'].toString();
       DateFormat inputFormatter = DateFormat('yyyy-MM-dd HH:mm:ss');
       DateTime dateTime = inputFormatter.parse(timeString);
