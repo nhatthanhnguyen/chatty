@@ -62,11 +62,14 @@ class _SignInScreenState extends State<SignInScreen> {
         UserInfo user = UserInfo.fromJson(jsonLogin['info']);
         const storage = FlutterSecureStorage();
         await storage.write(key: "user", value: jsonEncode(user.toJson()));
+        print("da luu thong tin");
         // String? userText = await storage.read(key: "user");
         // final Map<String, dynamic> jsonLogin1 = jsonDecode(userText.toString());
         // User user1 = User.fromJson(jsonLogin1);
         // print(user1.url);
-        isLoginError = false;
+        setState(() {
+          isLoginError = false; // Đánh dấu thông tin đăng nhập dung
+        });
       } else {
         setState(() {
           isLoginError = true; // Đánh dấu thông tin đăng nhập sai
@@ -109,9 +112,9 @@ class _SignInScreenState extends State<SignInScreen> {
         String token = setCookie.substring(startIndex, endIndex);
         String userId = jsonLogin['user_id'].toString();
         // write token
-        writeToken(token, userId);
+        await writeToken(token, userId);
         //get info user
-        getInfoUser(userId);
+        await getInfoUser(userId);
         return true;
       } else {
         setState(() {

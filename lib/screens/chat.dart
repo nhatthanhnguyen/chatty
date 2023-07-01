@@ -21,15 +21,6 @@ class _ChatScreenState extends State<ChatScreen>
   UserInfo userInfo = UserInfo(username: "");
   List<UserInfo> listFriends = [];
 
-  final List<User1> userList = List.generate(
-    10,
-    (index) => User1(
-      name: 'User ${index + 1}',
-      imageUrl:
-          'https://upload.wikimedia.org/wikipedia/commons/b/b6/Image_created_with_a_mobile_phone.png',
-    ),
-  );
-
   Future<void> getListFriends() async {
     // /friend/get-all-friend-by-user-id
     const storage = FlutterSecureStorage();
@@ -84,11 +75,13 @@ class _ChatScreenState extends State<ChatScreen>
     ),
   );
   Future<void> getUserInfo() async {
+    print("lay thong tin");
     const storage = FlutterSecureStorage();
     String? userText = await storage.read(key: "user");
     final Map<String, dynamic> jsonUser = jsonDecode(userText.toString());
     UserInfo user = UserInfo.fromJson(jsonUser);
     userInfo = user;
+    print("info:  ${userInfo.username}");
     setState(() {});
   }
 

@@ -124,6 +124,7 @@ class _ContactScreenState extends State<ContactScreen>
       const storage = FlutterSecureStorage();
       String? token = await storage.read(key: "token");
       // call api
+      print("token10000: $token");
       var headers = {
         'Content-Type': 'application/json',
         'Cookie': 'pchat=$token',
@@ -150,6 +151,7 @@ class _ContactScreenState extends State<ContactScreen>
             searchUsers = userInfos
                 .map((userInfo) => UserInfo.fromJson(userInfo))
                 .toList();
+            print("lenght:   ${searchUsers.length}");
             setState(() {});
           } else {
             setState(() {
