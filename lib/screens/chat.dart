@@ -231,6 +231,14 @@ class _ChatScreenState extends State<ChatScreen>
               _toggleMenu();
             },
           ),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.group_add),
+              onPressed: () {
+                context.push('/group/create');
+              },
+            ),
+          ],
         ),
         body: Stack(
           children: [

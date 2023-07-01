@@ -10,6 +10,7 @@ import 'package:chatty/screens/menu.dart';
 import 'package:chatty/screens/chat.dart';
 import 'package:chatty/screens/call.dart';
 import 'package:chatty/screens/otp.dart';
+import 'package:chatty/screens/create_group.dart';
 
 import 'package:chatty/screens/contact.dart';
 
@@ -97,5 +98,8 @@ final routes = GoRouter(
         groupId: state.pathParameters['groupId'] ?? '1',
       ),
     ),
+    GoRoute(
+        path: '/group/create',
+        builder: (context, state) => const CreateGroupScreen()),
   ],
 );
