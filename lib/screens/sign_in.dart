@@ -59,7 +59,7 @@ class _SignInScreenState extends State<SignInScreen> {
       String responseBody = await response.stream.bytesToString();
       final Map<String, dynamic> jsonLogin = jsonDecode(responseBody);
       if (jsonLogin['sub_return_code'].toString() == "1000") {
-        User user = User.fromJson(jsonLogin['info']);
+        UserInfo user = UserInfo.fromJson(jsonLogin['info']);
         const storage = FlutterSecureStorage();
         await storage.write(key: "user", value: jsonEncode(user.toJson()));
         // String? userText = await storage.read(key: "user");

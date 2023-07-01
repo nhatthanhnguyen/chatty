@@ -17,7 +17,7 @@ class ContactScreen extends StatefulWidget {
 
 class _ContactScreenState extends State<ContactScreen>
     with SingleTickerProviderStateMixin {
-  List<User> searchUsers = [];
+  List<UserInfo> searchUsers = [];
   late AnimationController _animationController;
   late Animation<Offset> _animation;
   bool _isMenuOpen = false;
@@ -147,8 +147,9 @@ class _ContactScreenState extends State<ContactScreen>
           bool containsKey = jsonListUsers.containsKey("user_infos");
           if (containsKey) {
             List<dynamic> userInfos = jsonListUsers['user_infos'];
-            searchUsers =
-                userInfos.map((userInfo) => User.fromJson(userInfo)).toList();
+            searchUsers = userInfos
+                .map((userInfo) => UserInfo.fromJson(userInfo))
+                .toList();
             setState(() {});
           } else {
             setState(() {

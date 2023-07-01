@@ -20,7 +20,7 @@ class _SearchScreenState extends State<SearchScreen>
   late AnimationController _animationController;
   late Animation<Offset> _animation;
   bool _isMenuOpen = false;
-  List<User> searchUsers = [];
+  List<UserInfo> searchUsers = [];
 
   List<bool> addedFriendList =
       List.filled(100, false); // Initial state: not added as friend
@@ -90,7 +90,7 @@ class _SearchScreenState extends State<SearchScreen>
         if (containsKey) {
           List<dynamic> userInfos = jsonListUsers['user_infos'];
           searchUsers =
-              userInfos.map((userInfo) => User.fromJson(userInfo)).toList();
+              userInfos.map((userInfo) => UserInfo.fromJson(userInfo)).toList();
           setState(() {});
         } else {
           setState(() {

@@ -1,4 +1,4 @@
-class User {
+class UserInfo {
   String? userId;
   String? username;
   String? phoneNumber;
@@ -7,7 +7,7 @@ class User {
   String? gender;
   String? url;
 
-  User(
+  UserInfo(
       {this.userId,
       this.username,
       this.phoneNumber,
@@ -16,12 +16,12 @@ class User {
       this.gender,
       this.url});
 
-  User.fromJson(Map<String, dynamic> json) {
-    userId = json['user_id'];
+  UserInfo.fromJson(Map<String, dynamic> json) {
     username = json['username'];
     phoneNumber = json['phone_number'];
     email = json['email'];
     status = json['status'];
+    userId = json['user_id'];
     gender = json['gender'];
     url = json['url'];
   }

@@ -36,7 +36,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     const storage = FlutterSecureStorage();
     String? userText = await storage.read(key: "user");
     final Map<String, dynamic> jsonUser = jsonDecode(userText.toString());
-    User user = User.fromJson(jsonUser);
+    UserInfo user = UserInfo.fromJson(jsonUser);
     widget.userProfile.name = user.username.toString();
     widget.userProfile.avatarUrl = user.url.toString();
     widget.userProfile.email = user.email.toString();

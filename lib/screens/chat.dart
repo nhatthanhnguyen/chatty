@@ -18,8 +18,8 @@ class _ChatScreenState extends State<ChatScreen>
   late AnimationController _animationController;
   late Animation<Offset> _animation;
   bool _isMenuOpen = false;
-  User userInfo = User(username: "");
-  List<User> listFriends = [];
+  UserInfo userInfo = UserInfo(username: "");
+  List<UserInfo> listFriends = [];
 
   final List<User1> userList = List.generate(
     10,
@@ -59,7 +59,7 @@ class _ChatScreenState extends State<ChatScreen>
       if (jsonListFriends['sub_return_code'].toString() == "1000") {
         List<dynamic> userInfos = jsonListFriends['user_infos'];
         listFriends =
-            userInfos.map((userInfo) => User.fromJson(userInfo)).toList();
+            userInfos.map((userInfo) => UserInfo.fromJson(userInfo)).toList();
 
         setState(() {});
       } else {
@@ -87,7 +87,7 @@ class _ChatScreenState extends State<ChatScreen>
     const storage = FlutterSecureStorage();
     String? userText = await storage.read(key: "user");
     final Map<String, dynamic> jsonUser = jsonDecode(userText.toString());
-    User user = User.fromJson(jsonUser);
+    UserInfo user = UserInfo.fromJson(jsonUser);
     userInfo = user;
     setState(() {});
   }
@@ -95,7 +95,7 @@ class _ChatScreenState extends State<ChatScreen>
   @override
   void initState() {
     super.initState();
-    userInfo = User(username: "");
+    userInfo = UserInfo(username: "");
     getListFriends();
     getUserInfo();
     _animationController = AnimationController(
@@ -158,7 +158,7 @@ class _ChatScreenState extends State<ChatScreen>
                       return GestureDetector(
                         onTap: () {
                           // Xử lý sự kiện khi nhấn vào phần tử
-                          // context.push("/chat/user/${user.userId}");
+                          context.push("/chat/user/${user.userId}");
                           print("Clicked on user: ${user.username}");
                         },
                         child: Padding(
