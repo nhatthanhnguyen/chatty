@@ -11,6 +11,7 @@ import 'package:flutter_chat_types/flutter_chat_types.dart' as types;
 import 'package:flutter_chat_types/flutter_chat_types.dart';
 import 'package:flutter_chat_ui/flutter_chat_ui.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
@@ -71,11 +72,9 @@ class _ChatPrivateScreenState extends State<ChatPrivateScreen> {
   }
 
   Future<void> _fetchUserInfo(String userId) async {
-    const storage = FlutterSecureStorage();
-    String? token = await storage.read(key: "token");
     var headers = {
       'Content-Type': 'application/json',
-      'Cookie': token as String,
+      'Cookie': _token,
     };
     var request = http.Request(
         'POST', Uri.parse('http://103.142.26.18:8081/api/user/get'));
@@ -126,20 +125,23 @@ class _ChatPrivateScreenState extends State<ChatPrivateScreen> {
           ? _userReceive.username
           : _currentUser.username,
     };
-    json["type"] = type;
     if (type == 'text') {
       json['text'] = jsonMessage['message'].toString();
+      json['type'] = 'text';
     }
     if (type == 'image') {
       json['size'] = jsonMessage['file_size'];
       json['height'] = jsonMessage['height'];
       json['width'] = jsonMessage['width'];
       json['uri'] = jsonMessage['url'];
+      json['name'] = jsonMessage['file_name'];
+      json['type'] = 'image';
     }
     if (type == 'file') {
       json['size'] = jsonMessage['file_size'];
       json['name'] = jsonMessage['file_name'];
       json['uri'] = jsonMessage['url'];
+      json['type'] = 'file';
     }
     return types.Message.fromJson(json);
   }
@@ -383,10 +385,12 @@ class _ChatPrivateScreenState extends State<ChatPrivateScreen> {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () {},
+          onPressed: () {
+            context.pop();
+          },
         ),
         title: Text(
-          _userReceive.username != null ? _userReceive.username! : "User",
+          _userReceive.username ?? "User",
           style: const TextStyle(fontSize: 16),
         ),
         actions: [
@@ -447,7 +451,7 @@ class _ChatPrivateScreenState extends State<ChatPrivateScreen> {
 
   @override
   void dispose() {
-    _channel!.sink.close();
+    _channel?.sink.close();
     super.dispose();
   }
 }
