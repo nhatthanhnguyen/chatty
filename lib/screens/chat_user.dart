@@ -8,7 +8,6 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_chat_types/flutter_chat_types.dart' as types;
-import 'package:flutter_chat_types/flutter_chat_types.dart';
 import 'package:flutter_chat_ui/flutter_chat_ui.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
@@ -142,6 +141,7 @@ class _ChatPrivateScreenState extends State<ChatPrivateScreen> {
       json['name'] = jsonMessage['file_name'];
       json['uri'] = jsonMessage['url'];
       json['type'] = 'file';
+      json['mimeType'] = lookupMimeType(jsonMessage['url']);
     }
     return types.Message.fromJson(json);
   }
@@ -166,6 +166,27 @@ class _ChatPrivateScreenState extends State<ChatPrivateScreen> {
         print("Send message success");
       }
     }
+  }
+
+  Future<Map<String, dynamic>> _uploadFileSelect(
+      String filePath, String fileName) async {
+    var headers = {
+      'Cookie': _token,
+    };
+    var request = http.MultipartRequest('POST',
+        Uri.parse('http://103.142.26.18:8081/api/message/create-message'));
+    request.fields.addAll({'recipient_id': _userReceive.userId.toString()});
+    request.files.add(await http.MultipartFile.fromPath('file', filePath));
+    request.headers.addAll(headers);
+
+    http.StreamedResponse response = await request.send();
+
+    if (response.statusCode == 200) {
+      String responseBody = await response.stream.bytesToString();
+      Map<String, dynamic> responseJson = jsonDecode(responseBody);
+      return responseJson['message'];
+    }
+    return {};
   }
 
   @override
@@ -248,14 +269,21 @@ class _ChatPrivateScreenState extends State<ChatPrivateScreen> {
     );
 
     if (result != null && result.files.single.path != null) {
+      final response = await _uploadFileSelect(
+          result.files.single.path!, result.files.single.name);
+      final timeString = response['time'].toString();
+      DateFormat inputFormatter = DateFormat('yyyy-MM-dd HH:mm:ss');
+      DateTime dateTime = inputFormatter.parse(timeString);
+      final fileName = response['file_name'].toString();
+      final url = response['url'];
       final message = types.FileMessage(
         author: convertToUserType(_currentUser),
-        createdAt: DateTime.now().millisecondsSinceEpoch,
+        createdAt: dateTime.millisecondsSinceEpoch,
         id: const Uuid().v4(),
         mimeType: lookupMimeType(result.files.single.path!),
-        name: result.files.single.name,
+        name: fileName,
         size: result.files.single.size,
-        uri: result.files.single.path!,
+        uri: url,
       );
 
       _addMessage(message);
@@ -272,15 +300,20 @@ class _ChatPrivateScreenState extends State<ChatPrivateScreen> {
     if (result != null) {
       final bytes = await result.readAsBytes();
       final image = await decodeImageFromList(bytes);
-
+      final response = await _uploadFileSelect(result.path, result.name);
+      final timeString = response['time'].toString();
+      DateFormat inputFormatter = DateFormat('yyyy-MM-dd HH:mm:ss');
+      DateTime dateTime = inputFormatter.parse(timeString);
+      final fileName = response['file_name'].toString();
+      final url = response['url'];
       final message = types.ImageMessage(
         author: convertToUserType(_currentUser),
-        createdAt: DateTime.now().millisecondsSinceEpoch,
+        createdAt: dateTime.millisecondsSinceEpoch,
         height: image.height.toDouble(),
         id: const Uuid().v4(),
-        name: result.name,
+        name: fileName,
         size: bytes.length,
-        uri: result.path,
+        uri: url,
         width: image.width.toDouble(),
       );
 
@@ -361,22 +394,44 @@ class _ChatPrivateScreenState extends State<ChatPrivateScreen> {
 
   types.Message _handleMessageSocket(String data) {
     Map<String, dynamic> json = jsonDecode(data);
-    Map<String, dynamic> payloadJson = json['payload'];
-    User author = User(
-      id: _userReceive.userId.toString(),
-      firstName: _userReceive.username,
-      imageUrl: _userReceive.url,
-    );
-    String timeString = payloadJson['time'];
-    DateTime dateTime = DateTime.parse(timeString);
+    Map<String, dynamic> jsonPayload = json['payload'];
+    String senderId = jsonPayload['sender_id'].toString();
+    String type = jsonPayload['type'].toString();
+    var randomId = const Uuid().v4().toString();
+    Map<String, dynamic> jsonMessage = <String, dynamic>{};
+    DateTime dateTime = DateTime.parse(jsonPayload['time'].toString());
     int timestamp = dateTime.millisecondsSinceEpoch;
-    final textMessage = types.TextMessage(
-      author: author,
-      id: const Uuid().v4(),
-      text: payloadJson['message'],
-      createdAt: timestamp,
-    );
-    return textMessage;
+
+    jsonMessage['id'] = randomId;
+    jsonMessage['createdAt'] = timestamp;
+    jsonMessage['author'] = {
+      "id": jsonPayload['sender_id'],
+      "imageUrl":
+          senderId != _currentUser.userId ? _userReceive.url : _currentUser.url,
+      "firstname": senderId != _currentUser.userId
+          ? _userReceive.username
+          : _currentUser.username,
+    };
+    if (type == 'text') {
+      jsonMessage['text'] = jsonPayload['message'].toString();
+      jsonMessage['type'] = 'text';
+    }
+    if (type == 'image') {
+      jsonMessage['size'] = jsonPayload['file_size'];
+      jsonMessage['height'] = jsonPayload['height'];
+      jsonMessage['width'] = jsonPayload['width'];
+      jsonMessage['uri'] = jsonPayload['url'];
+      jsonMessage['name'] = jsonPayload['file_name'];
+      jsonMessage['type'] = 'image';
+    }
+    if (type == 'file') {
+      jsonMessage['size'] = jsonPayload['file_size'];
+      jsonMessage['name'] = jsonPayload['file_name'];
+      jsonMessage['uri'] = jsonPayload['url'];
+      jsonMessage['type'] = 'file';
+      jsonMessage['mimeType'] = lookupMimeType(jsonPayload['url']);
+    }
+    return types.Message.fromJson(jsonMessage);
   }
 
   @override
