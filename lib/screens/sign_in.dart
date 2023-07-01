@@ -26,7 +26,7 @@ class _SignInScreenState extends State<SignInScreen> {
   final _passwordController = TextEditingController();
   bool isLoginError = false; // Thêm biến kiểm tra lỗi đăng nhập
 
-  void writeToken(String token, String userId) async {
+  Future<void> writeToken(String token, String userId) async {
     const storage = FlutterSecureStorage();
     print("token1:$token");
     await storage.write(key: "token", value: token);
@@ -112,7 +112,6 @@ class _SignInScreenState extends State<SignInScreen> {
         writeToken(token, userId);
         //get info user
         getInfoUser(userId);
-        isLoginError = false;
         return true;
       } else {
         setState(() {

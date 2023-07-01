@@ -4,12 +4,13 @@ import 'dart:io';
 
 import 'package:chatty/models/chat_history.dart';
 import 'package:chatty/models/group.dart';
-import 'package:chatty/utils/consts.dart';
+import 'package:chatty/utils/convert.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_chat_types/flutter_chat_types.dart' as types;
 import 'package:flutter_chat_types/flutter_chat_types.dart';
 import 'package:flutter_chat_ui/flutter_chat_ui.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
@@ -35,11 +36,14 @@ class _ChatGroupScreenState extends State<ChatGroupScreen> {
   List<types.Message> _messages = [];
   WebSocketChannel? _channel;
   Group? _group;
+  UserInfo _currentUser = UserInfo();
+  String _token = '';
+  final _storage = const FlutterSecureStorage();
 
   Future<void> _fetchGroupInfo() async {
     var headers = {
       'Content-Type': 'application/json',
-      'Cookie': token,
+      'Cookie': _token,
     };
     var request = http.Request(
         'POST', Uri.parse('http://103.142.26.18:8081/api/group/get'));
@@ -64,7 +68,7 @@ class _ChatGroupScreenState extends State<ChatGroupScreen> {
   Future<void> _fetchMessageHistory() async {
     var headers = {
       'Content-Type': 'application/json',
-      'Cookie': token,
+      'Cookie': _token,
     };
     var request = http.Request('POST',
         Uri.parse('http://103.142.26.18:8081/api/message/get-chat-history'));
@@ -100,7 +104,7 @@ class _ChatGroupScreenState extends State<ChatGroupScreen> {
   Future<UserInfo?> _fetchUserInfo(String userId) async {
     var headers = {
       'Content-Type': 'application/json',
-      'Cookie': token,
+      'Cookie': _token,
     };
     var request = http.Request(
         'POST', Uri.parse('http://103.142.26.18:8081/api/user/get'));
@@ -122,7 +126,7 @@ class _ChatGroupScreenState extends State<ChatGroupScreen> {
 
   Future<void> _createMessage(String text, String type) async {
     var headers = {
-      'Cookie': token,
+      'Cookie': _token,
     };
     var request = http.MultipartRequest('POST',
         Uri.parse('http://103.142.26.18:8081/api/message/create-message'));
@@ -184,22 +188,34 @@ class _ChatGroupScreenState extends State<ChatGroupScreen> {
     return textMessage;
   }
 
+  Future<void> _fetchCurrentUser() async {
+    String? token = await _storage.read(key: "token");
+    String? userText = await _storage.read(key: "user");
+    final Map<String, dynamic> jsonUser = jsonDecode(userText.toString());
+    setState(() {
+      _token = token as String;
+      _currentUser = UserInfo.fromJson(jsonUser);
+    });
+  }
+
   @override
   void initState() {
     super.initState();
-    _fetchGroupInfo().then((_) {
-      _fetchMessageHistory().then((_) {
-        _channel = WebSocketChannel.connect(
-            Uri.parse('ws://103.142.26.18:8081/ws/${currentUser.id}'));
-        Map<String, dynamic> joinRoomJson = {
-          'event': 'JoinRoom',
-          'room': widget.groupId,
-        };
-        _channel!.sink.add(jsonEncode(joinRoomJson));
-        _channel!.stream.listen((data) {
-          _handleMessageSocket(data).then((message) {
-            setState(() {
-              _messages.insert(0, message);
+    _fetchCurrentUser().then((_) {
+      _fetchGroupInfo().then((_) {
+        _fetchMessageHistory().then((_) {
+          _channel = WebSocketChannel.connect(
+              Uri.parse('ws://103.142.26.18:8081/ws/${_currentUser.userId}'));
+          Map<String, dynamic> joinRoomJson = {
+            'event': 'JoinRoom',
+            'room': widget.groupId,
+          };
+          _channel!.sink.add(jsonEncode(joinRoomJson));
+          _channel!.stream.listen((data) {
+            _handleMessageSocket(data).then((message) {
+              setState(() {
+                _messages.insert(0, message);
+              });
             });
           });
         });
@@ -292,7 +308,7 @@ class _ChatGroupScreenState extends State<ChatGroupScreen> {
 
     if (result != null && result.files.single.path != null) {
       final message = types.FileMessage(
-        author: currentUser,
+        author: convertToUserType(_currentUser),
         createdAt: DateTime.now().millisecondsSinceEpoch,
         id: const Uuid().v4(),
         mimeType: lookupMimeType(result.files.single.path!),
@@ -317,7 +333,7 @@ class _ChatGroupScreenState extends State<ChatGroupScreen> {
       final image = await decodeImageFromList(bytes);
 
       final message = types.ImageMessage(
-        author: currentUser,
+        author: convertToUserType(_currentUser),
         createdAt: DateTime.now().millisecondsSinceEpoch,
         height: image.height.toDouble(),
         id: const Uuid().v4(),
@@ -393,7 +409,7 @@ class _ChatGroupScreenState extends State<ChatGroupScreen> {
   void _handleSendPressed(types.PartialText message) {
     _createMessage(message.text, 'text').then((_) {
       final textMessage = types.TextMessage(
-        author: currentUser,
+        author: convertToUserType(_currentUser),
         createdAt: DateTime.now().millisecondsSinceEpoch,
         id: const Uuid().v4(),
         text: message.text,
@@ -477,7 +493,7 @@ class _ChatGroupScreenState extends State<ChatGroupScreen> {
             onSendPressed: _handleSendPressed,
             showUserAvatars: true,
             showUserNames: true,
-            user: currentUser,
+            user: convertToUserType(_currentUser),
           );
         },
       ),

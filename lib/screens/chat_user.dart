@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:chatty/models/chat_history.dart';
 import 'package:chatty/models/user.dart';
+import 'package:chatty/utils/convert.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -32,24 +32,19 @@ class ChatPrivateScreen extends StatefulWidget {
 
 class _ChatPrivateScreenState extends State<ChatPrivateScreen> {
   List<types.Message> _messages = [];
-  UserInfo _userReceiveInfo = UserInfo();
+  UserInfo _userReceive = UserInfo();
   WebSocketChannel? _channel;
+  UserInfo _currentUser = UserInfo();
+  String _token = '';
+  final _storage = const FlutterSecureStorage();
 
-  Future<void> fetchMessageHistory(String userId) async {
-    const storage = FlutterSecureStorage();
-    String? token = await storage.read(key: "token");
-    String? userText = await storage.read(key: "user");
-    final Map<String, dynamic> jsonUser = jsonDecode(userText.toString());
-    UserInfo currentUser = UserInfo.fromJson(jsonUser);
+  Future<void> _fetchMessageHistory(String userId) async {
     var headers = {
       'Content-Type': 'application/json',
-      'Cookie': token as String,
+      'Cookie': _token,
     };
     var request = http.Request('POST',
         Uri.parse('http://103.142.26.18:8081/api/message/get-chat-history'));
-    // DateFormat dateFormat = DateFormat("dd/MM/yyyy HH:mm:ss");
-    // DateTime currentTime = DateTime.now();
-    // String currentTimeString = dateFormat.format(currentTime);
     request.body = json.encode({
       "recipient_id": userId,
       "start_time": "12/12/2022 01:00:00",
@@ -64,10 +59,8 @@ class _ChatPrivateScreenState extends State<ChatPrivateScreen> {
       Map<String, dynamic> responseJson = jsonDecode(value);
       List<types.Message> messages = [];
       if (responseJson['chat_history'] != null) {
-        for (final chatHistoryJson in responseJson['chat_history']) {
-          ChatHistory chatHistory = ChatHistory.fromJson(chatHistoryJson);
-          types.Message message =
-              convertToMessageType(chatHistory, currentUser);
+        for (final jsonMessage in responseJson['chat_history']) {
+          types.Message message = _convertToMessageType(jsonMessage);
           messages.insert(0, message);
         }
       }
@@ -77,7 +70,7 @@ class _ChatPrivateScreenState extends State<ChatPrivateScreen> {
     }
   }
 
-  Future<void> fetchUserInfo(String userId) async {
+  Future<void> _fetchUserInfo(String userId) async {
     const storage = FlutterSecureStorage();
     String? token = await storage.read(key: "token");
     var headers = {
@@ -97,39 +90,63 @@ class _ChatPrivateScreenState extends State<ChatPrivateScreen> {
       if (userInfoJson['info'] != null) {
         UserInfo userInfo = UserInfo.fromJson(userInfoJson['info']);
         setState(() {
-          _userReceiveInfo = userInfo;
+          _userReceive = userInfo;
         });
       }
     }
   }
 
-  types.Message convertToMessageType(
-      ChatHistory chatHistory, UserInfo currentUser) {
+  Future<void> _fetchCurrentUser() async {
+    String? token = await _storage.read(key: "token");
+    String? userText = await _storage.read(key: "user");
+    final Map<String, dynamic> jsonUser = jsonDecode(userText.toString());
+    setState(() {
+      _token = 'pchat=${token.toString()}';
+      _currentUser = UserInfo.fromJson(jsonUser);
+    });
+  }
+
+  types.Message _convertToMessageType(Map<String, dynamic> jsonMessage) {
+    String senderId = jsonMessage['sender_id'].toString();
+    String type = jsonMessage['resource_type'].toString();
     var randomId = const Uuid().v4().toString();
     Map<String, dynamic> json = <String, dynamic>{};
-    DateFormat format = DateFormat('yyyy-MM-dd HH:mm:ss.SSS');
-    DateTime dateTime = format.parse(chatHistory.time as String);
+    DateFormat format = DateFormat('yyyy-MM-dd HH:mm:ss');
+    DateTime dateTime = format.parse(jsonMessage['time'].toString());
     int timestamp =
         dateTime.add(const Duration(hours: 7)).millisecondsSinceEpoch;
-    json["id"] = randomId;
-    json["createdAt"] = timestamp;
-    json["author"] = {
-      "id": chatHistory.senderId,
-      "imageUrl": chatHistory.senderId != currentUser.userId
-          ? _userReceiveInfo.url
-          : currentUser.url,
-      "firstname": chatHistory.senderId != currentUser.userId
-          ? _userReceiveInfo.username
-          : currentUser.username,
+
+    json['id'] = randomId;
+    json['createdAt'] = timestamp;
+    json['author'] = {
+      "id": jsonMessage['sender_id'],
+      "imageUrl":
+          senderId != _currentUser.userId ? _userReceive.url : _currentUser.url,
+      "firstname": senderId != _currentUser.userId
+          ? _userReceive.username
+          : _currentUser.username,
     };
-    json["type"] = "text";
-    json["text"] = chatHistory.message;
+    json["type"] = type;
+    if (type == 'text') {
+      json['text'] = jsonMessage['message'].toString();
+    }
+    if (type == 'image') {
+      json['size'] = jsonMessage['file_size'];
+      json['height'] = jsonMessage['height'];
+      json['width'] = jsonMessage['width'];
+      json['uri'] = jsonMessage['url'];
+    }
+    if (type == 'file') {
+      json['size'] = jsonMessage['file_size'];
+      json['name'] = jsonMessage['file_name'];
+      json['uri'] = jsonMessage['url'];
+    }
     return types.Message.fromJson(json);
   }
 
-  Future<void> createMessage(String recipientId, String text) async {
+  Future<void> _createMessage(String recipientId, String text) async {
     var headers = {
-      'Cookie': token,
+      'Cookie': _token,
     };
     var request = http.MultipartRequest('POST',
         Uri.parse('http://103.142.26.18:8081/api/message/create-message'));
@@ -152,20 +169,22 @@ class _ChatPrivateScreenState extends State<ChatPrivateScreen> {
   @override
   void initState() {
     super.initState();
-    fetchUserInfo(widget.userId).then((_) {
-      fetchMessageHistory(widget.userId).then((_) {
-        _channel?.sink.close();
-        _channel = IOWebSocketChannel.connect(
-            Uri.parse("ws://103.142.26.18:8081/ws/${currentUser.id}"));
-        Map<String, String> joinRoomJson = {
-          'event': 'JoinRoom',
-          'room': currentUser.id,
-        };
-        _channel!.sink.add(jsonEncode(joinRoomJson));
-        _channel!.stream.listen((data) {
-          final message = _handleMessageSocket(data);
-          setState(() {
-            _messages.insert(0, message);
+    _fetchCurrentUser().then((_) {
+      _fetchUserInfo(widget.userId).then((_) {
+        _fetchMessageHistory(widget.userId).then((_) {
+          _channel?.sink.close();
+          _channel = IOWebSocketChannel.connect(
+              Uri.parse("ws://103.142.26.18:8081/ws/${_currentUser.userId}"));
+          Map<String, String> joinRoomJson = {
+            'event': 'JoinRoom',
+            'room': _currentUser.userId as String,
+          };
+          _channel!.sink.add(jsonEncode(joinRoomJson));
+          _channel!.stream.listen((data) {
+            final message = _handleMessageSocket(data);
+            setState(() {
+              _messages.insert(0, message);
+            });
           });
         });
       });
@@ -228,7 +247,7 @@ class _ChatPrivateScreenState extends State<ChatPrivateScreen> {
 
     if (result != null && result.files.single.path != null) {
       final message = types.FileMessage(
-        author: currentUser,
+        author: convertToUserType(_currentUser),
         createdAt: DateTime.now().millisecondsSinceEpoch,
         id: const Uuid().v4(),
         mimeType: lookupMimeType(result.files.single.path!),
@@ -253,7 +272,7 @@ class _ChatPrivateScreenState extends State<ChatPrivateScreen> {
       final image = await decodeImageFromList(bytes);
 
       final message = types.ImageMessage(
-        author: currentUser,
+        author: convertToUserType(_currentUser),
         createdAt: DateTime.now().millisecondsSinceEpoch,
         height: image.height.toDouble(),
         id: const Uuid().v4(),
@@ -327,9 +346,9 @@ class _ChatPrivateScreenState extends State<ChatPrivateScreen> {
   }
 
   void _handleSendPressed(types.PartialText message) {
-    createMessage(widget.userId, message.text).then((_) {
+    _createMessage(widget.userId, message.text).then((_) {
       final textMessage = types.TextMessage(
-        author: currentUser,
+        author: convertToUserType(_currentUser),
         createdAt: DateTime.now().millisecondsSinceEpoch,
         id: const Uuid().v4(),
         text: message.text,
@@ -342,9 +361,9 @@ class _ChatPrivateScreenState extends State<ChatPrivateScreen> {
     Map<String, dynamic> json = jsonDecode(data);
     Map<String, dynamic> payloadJson = json['payload'];
     User author = User(
-      id: _userReceiveInfo.userId.toString(),
-      firstName: _userReceiveInfo.username,
-      imageUrl: _userReceiveInfo.url,
+      id: _userReceive.userId.toString(),
+      firstName: _userReceive.username,
+      imageUrl: _userReceive.url,
     );
     String timeString = payloadJson['time'];
     DateTime dateTime = DateTime.parse(timeString);
@@ -367,7 +386,7 @@ class _ChatPrivateScreenState extends State<ChatPrivateScreen> {
           onPressed: () {},
         ),
         title: Text(
-          _userReceiveInfo.username != null ? currentUser.firstName! : "User",
+          _userReceive.username != null ? _userReceive.username! : "User",
           style: const TextStyle(fontSize: 16),
         ),
         actions: [
@@ -419,7 +438,7 @@ class _ChatPrivateScreenState extends State<ChatPrivateScreen> {
             onSendPressed: _handleSendPressed,
             showUserAvatars: true,
             showUserNames: true,
-            user: currentUser,
+            user: convertToUserType(_currentUser),
           );
         },
       ),

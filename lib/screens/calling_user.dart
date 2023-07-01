@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'dart:ui';
 
 import 'package:chatty/models/user.dart';
-import 'package:chatty/utils/consts.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 
@@ -19,11 +19,13 @@ class CallingUser extends StatefulWidget {
 class _CallingUserState extends State<CallingUser> {
   UserInfo? _userInfo;
   bool isConnected = false;
+  String _token = '';
+  final _storage = const FlutterSecureStorage();
 
   Future<void> _fetchUserInfo() async {
     var headers = {
       'Content-Type': 'application/json',
-      'Cookie': token,
+      'Cookie': _token,
     };
     var request = http.Request(
         'POST', Uri.parse('http://103.142.26.18:8081/api/user/get'));
@@ -44,11 +46,19 @@ class _CallingUserState extends State<CallingUser> {
     }
   }
 
+  Future<void> _fetchCurrentUser() async {
+    String? token = await _storage.read(key: "token");
+    setState(() {
+      _token = token as String;
+    });
+  }
+
   @override
   void initState() {
     super.initState();
-    isConnected = false;
-    _fetchUserInfo();
+    _fetchCurrentUser().then((_) {
+      _fetchUserInfo();
+    });
   }
 
   @override

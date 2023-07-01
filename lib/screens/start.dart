@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 class StartScreen extends StatelessWidget {
-  const StartScreen({super.key});
+  const StartScreen({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -32,45 +32,37 @@ class StartScreen extends StatelessWidget {
             const SizedBox(
               height: 15,
             ),
-            ElevatedButton(
-              onPressed: () {
-                context.push("/signIn");
-              },
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(
-                  vertical: 10,
-                  horizontal: 138,
+            Column(
+              children: [
+                ElevatedButton(
+                  onPressed: () {
+                    context.push("/signIn");
+                  },
+                  child: const Text(
+                    "Đăng nhập",
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
-              ),
-              child: const Text(
-                "Đăng nhập",
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
+                const SizedBox(
+                  height: 5,
                 ),
-              ),
+                OutlinedButton(
+                  onPressed: () {
+                    context.push("/signUp");
+                  },
+                  child: const Text(
+                    "Đăng kí",
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(
-              height: 5,
-            ),
-            OutlinedButton(
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(
-                  vertical: 10,
-                  horizontal: 150,
-                ),
-              ),
-              onPressed: () {
-                context.push("/signUp");
-              },
-              child: const Text(
-                "Đăng kí",
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            )
           ],
         ),
       ),
