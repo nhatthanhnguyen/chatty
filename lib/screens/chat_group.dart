@@ -184,10 +184,13 @@ class _ChatGroupScreenState extends State<ChatGroupScreen> {
     return types.Message.fromJson(json);
   }
 
-  Future<types.Message> _handleMessageSocket(String data) async {
+  Future<types.Message?> _handleMessageSocket(String data) async {
     Map<String, dynamic> json = jsonDecode(data);
     Map<String, dynamic> jsonPayload = json['payload'];
     String senderId = jsonPayload['sender_id'].toString();
+    if (senderId == _currentUser.userId) {
+      return null;
+    }
     String type = jsonPayload['type'].toString();
     var randomId = const Uuid().v4().toString();
     Map<String, dynamic> jsonMessage = <String, dynamic>{};
@@ -249,9 +252,11 @@ class _ChatGroupScreenState extends State<ChatGroupScreen> {
           _channel!.sink.add(jsonEncode(joinRoomJson));
           _channel!.stream.listen((data) {
             _handleMessageSocket(data).then((message) {
-              setState(() {
-                _messages.insert(0, message);
-              });
+              if (message != null) {
+                setState(() {
+                  _messages.insert(0, message);
+                });
+              }
             });
           });
         });
