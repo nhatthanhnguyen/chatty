@@ -192,6 +192,9 @@ class _SearchScreenState extends State<SearchScreen>
                             ),
                           ),
                         ),
+                        onTap: () {
+                          context.push("/chat/user/${result.userId}");
+                        },
                       );
                     },
                   ),
